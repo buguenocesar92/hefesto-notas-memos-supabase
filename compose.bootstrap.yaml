@@ -1,0 +1,8 @@
+services:
+  preflight:
+    environment:
+      BOOTSTRAP_MODE: "true"
+  app:
+    environment:
+      MEMOS_INSTANCE_URL: http://localhost:8105
+    ports: ["127.0.0.1:8105:5230"]
