@@ -32,3 +32,13 @@ No habilitar acceso general a redes privadas para webhooks. Adjuntos de prueba d
 Respaldos contienen usuarios, tokens, notas, archivos y claves. Cifrarlos y mantener copia fuera del VPS. Restauración en docs/RESTORE.md. No ejecutar versiones diferentes contra la misma base.
 
 Estado: revisión estática del kit; falta ejecutar Docker, migraciones, flujos de notas/adjuntos y restauración real. No se han creado cuentas externas ni enviado datos.
+
+## Despliegue en Coolify (MVP Hefesto)
+
+Coolify enruta el dominio vía Traefik; el compose no publica puertos ni fija `container_name`. Para Postgres compartido de Supabase, la base y el modo TLS se parametrizan:
+
+- `DB_NAME` (default `postgres`): nombre de la base en el Postgres compartido; cada app usa su propia base (`mvp_<slug>`).
+- `DB_SSLMODE` (default `verify-full`): modo TLS del `psql` y del DSN. Con `verify-full` el certificado `certs/ca.crt` es obligatorio y `ops/preflight.sh` lo valida. Con otro valor (`require`, `disable`), la CA no es obligatoria y el DSN sigue aceptando conexión.
+- `DB_ALLOW_INTERNAL_HOST` (opcional, default `false`): cuando `DB_SSLMODE=disable`, acepta un host interno de Docker en lugar del FQDN `*.supabase.co`.
+
+El chequeo de Coolify vive en `scripts/coolify-check.sh`: renderiza `compose.yaml` con un `.env` ficticio y valida que no se expone el host, que no hay `name:` fijo y que `DB_NAME`/`DB_SSLMODE` se propagan al render.

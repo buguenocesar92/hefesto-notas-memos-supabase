@@ -1,11 +1,10 @@
-name: hefesto-notas
 x-pg: &pg
   PGHOST: ${DB_HOST:?Configurar DB_HOST}
   PGPORT: "5432"
-  PGDATABASE: postgres
+  PGDATABASE: ${DB_NAME:-postgres}
   PGUSER: ${DB_USER:-memos_app}
   PGPASSWORD: ${DB_PASSWORD:?Configurar clave}
-  PGSSLMODE: verify-full
+  PGSSLMODE: ${DB_SSLMODE:-verify-full}
   PGSSLROOTCERT: /certs/ca.crt
   PGCONNECT_TIMEOUT: "15"
 services:
@@ -37,7 +36,7 @@ services:
       MEMOS_PORT: "5230"
       MEMOS_DATA: /var/opt/memos
       MEMOS_DRIVER: postgres
-      MEMOS_DSN: postgres://${DB_USER:-memos_app}:${DB_PASSWORD}@${DB_HOST}:5432/postgres?sslmode=verify-full&sslrootcert=/certs/ca.crt&connect_timeout=15
+      MEMOS_DSN: postgres://${DB_USER:-memos_app}:${DB_PASSWORD}@${DB_HOST}:5432/${DB_NAME:-postgres}?sslmode=${DB_SSLMODE:-verify-full}&sslrootcert=/certs/ca.crt&connect_timeout=15
       MEMOS_INSTANCE_URL: ${PUBLIC_URL:?Configurar URL HTTPS}
       MEMOS_LOG_LEVEL: info
     expose: ["5230"]
