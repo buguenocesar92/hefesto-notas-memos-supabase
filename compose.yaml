@@ -5,7 +5,7 @@ x-pg: &pg
   PGUSER: ${DB_USER:-memos_app}
   PGPASSWORD: ${DB_PASSWORD:?Configurar clave}
   PGSSLMODE: ${DB_SSLMODE:-verify-full}
-  PGSSLROOTCERT: /certs/ca.crt
+  PGSSLROOTCERT: ${DB_SSLROOTCERT-/certs/ca.crt}
   PGCONNECT_TIMEOUT: "15"
 services:
   preflight:
@@ -36,11 +36,17 @@ services:
       MEMOS_PORT: "5230"
       MEMOS_DATA: /var/opt/memos
       MEMOS_DRIVER: postgres
-      MEMOS_DSN: postgres://${DB_USER:-memos_app}:${DB_PASSWORD}@${DB_HOST}:5432/${DB_NAME:-postgres}?sslmode=${DB_SSLMODE:-verify-full}&sslrootcert=/certs/ca.crt&connect_timeout=15
+      MEMOS_DSN: postgres://${DB_USER:-memos_app}:${DB_PASSWORD}@${DB_HOST}:5432/${DB_NAME:-postgres}?sslmode=${DB_SSLMODE:-verify-full}&sslrootcert=${DB_SSLROOTCERT-/certs/ca.crt}&connect_timeout=15
       MEMOS_INSTANCE_URL: ${PUBLIC_URL:?Configurar URL HTTPS}
       MEMOS_LOG_LEVEL: info
     expose: ["5230"]
     volumes: [files:/var/opt/memos, ./certs:/certs:ro]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:5230/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
   dbtools:
     image: postgres:17-alpine
     profiles: [tools]

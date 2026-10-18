@@ -9,7 +9,7 @@
 #
 # Salida 0 = cumple. 2 = falta prerequisito. 1 = no cumple.
 
-set -uo pipefail
+set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -39,8 +39,6 @@ fake_env() {
     case "$v" in
       DB_HOST|PUBLIC_URL|SUPABASE_URL)
         echo "$v=https://ejemplo.invalid" >> "$out" ;;
-      DB_ALLOW_INTERNAL_HOST)
-        echo "$v=true" >> "$out" ;;
       *)
         echo "$v=x1234567890abcdef" >> "$out" ;;
     esac
@@ -96,7 +94,7 @@ check_contract_1() {
         (if $svc.network_mode == "host" then "network_mode:host" else empty end),
         (if $svc.pid == "host" then "pid:host" else empty end),
         (if $svc.ipc == "host" then "ipc:host" else empty end),
-        (if (($svc.security_opt // []) | index("unconfined")) != null then "security_opt:unconfined" else empty end)
+        (if (($svc.security_opt // []) | any(.[]; test("unconfined"))) then "security_opt:unconfined" else empty end)
       )
     ')
     [ -z "$probe" ] || fail "$svc: expone $probe"
@@ -137,7 +135,7 @@ check_contract_2() {
     ' "$ROOT/compose.yaml"; then
     fail "compose.yaml: red con 'name:' fijo (Coolify pone el nombre)"
   fi
-  check_source_volume_names
+  check_source_volume_names || fail "volumen con name fijo"
 }
 
 # Contrato 3 (supabase-pg): DB_NAME y DB_SSLMODE propagados al render.
@@ -162,6 +160,7 @@ VARS="$(extract_vars compose.yaml)"
 ENV_BASE="$TMPDIR/env-base"
 fake_env "$ENV_BASE" $VARS
 JSON_BASE="$(render "$ENV_BASE")"
+[ -n "$JSON_BASE" ] || fail "render base vacío"
 
 check_contract_1 "$JSON_BASE"
 check_contract_2
@@ -172,7 +171,22 @@ fake_env "$ENV_PG" $VARS
 echo "DB_NAME=mvp_prueba" >> "$ENV_PG"
 echo "DB_SSLMODE=disable" >> "$ENV_PG"
 JSON_PG="$(render "$ENV_PG")"
+[ -n "$JSON_PG" ] || fail "render pg vacío"
 
 check_contract_supabase_pg "$JSON_PG"
+
+# Con DB_SSLROOTCERT vacío, el DSN no debe arrastrar /certs/ca.crt:
+# el contrato 3 dice que si sslmode no es verify-full la CA no es obligatoria.
+ENV_PG_NOROOT="$TMPDIR/env-pg-noroot"
+fake_env "$ENV_PG_NOROOT" $VARS
+echo "DB_NAME=mvp_prueba" >> "$ENV_PG_NOROOT"
+echo "DB_SSLMODE=disable" >> "$ENV_PG_NOROOT"
+echo "DB_SSLROOTCERT=" >> "$ENV_PG_NOROOT"
+JSON_PG_NOROOT="$(render "$ENV_PG_NOROOT")"
+[ -n "$JSON_PG_NOROOT" ] || fail "render pg-noroot vacío"
+DSN_NOROOT="$(printf '%s' "$JSON_PG_NOROOT" | jq -r '.services.app.environment.MEMOS_DSN // ""')"
+case "$DSN_NOROOT" in
+  *"/certs/ca.crt"*) fail "app.MEMOS_DSN arrastra /certs/ca.crt con DB_SSLROOTCERT vacío (render=$DSN_NOROOT)" ;;
+esac
 
 echo "OK: coolify-check cumplido"
